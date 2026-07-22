@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Local token cache (see agent_data/tasks/04-auth-login-command-open.md)
+.testgator/
+
+# Env
+.env
+.env.local
+
+# Coverage
+coverage/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Logs
+npm-debug.log*
