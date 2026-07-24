@@ -21,6 +21,11 @@ export interface PlanUpdateInput {
   content?: string;
 }
 
+export interface PlanRemoveTestersResult {
+  testersEnrolled: string[];
+  enrolledCount: number;
+}
+
 export interface PlanListFilters extends PaginationFilters {
   /**
    * Filters plans down to a single project. Maps to the `release.project`
@@ -136,5 +141,41 @@ export class PlanService {
       payload,
     );
     return this.hydra.shapeItem(raw);
+  }
+
+  /**
+   * Removes one or more testers from a plan's enrollment — the inverse of
+   * InviteService.inviteToTestPlan. `testersEnrolled` is a full-replacement
+   * array server-side (merge-patch replaces the whole field, it doesn't
+   * merge array contents), so this reads the plan's current roster first
+   * and PATCHes back the reduced set. Detaches enrollment only: it does not
+   * delete the testers' existing answers or their accounts.
+   *
+   * Mirrors TesterService.removeTags' "already absent → skip the PATCH"
+   * short-circuit: if none of the given tester ids are actually enrolled,
+   * nothing is sent.
+   */
+  async removeTesters(
+    id: string,
+    testerIds: string[],
+  ): Promise<PlanRemoveTestersResult> {
+    const plan = await this.get(id);
+    const current = (
+      (plan.testersEnrolled as string[] | undefined) ?? []
+    ).slice();
+    const irisToRemove = testerIds.map(
+      (testerId) => `/api/testers/${testerId}`,
+    );
+    const remaining = current.filter((iri) => !irisToRemove.includes(iri));
+
+    if (remaining.length === current.length) {
+      return { testersEnrolled: remaining, enrolledCount: remaining.length };
+    }
+
+    await this.apiClient.patch(`/api/test_plans/${id}`, {
+      testersEnrolled: remaining,
+    });
+
+    return { testersEnrolled: remaining, enrolledCount: remaining.length };
   }
 }

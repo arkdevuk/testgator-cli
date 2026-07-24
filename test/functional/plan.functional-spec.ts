@@ -154,4 +154,85 @@ describe('plan (functional)', () => {
 
     errorSpy.mockRestore();
   });
+
+  it('plan remove-tester reads the roster, PATCHes the reduced set, and prints it', async () => {
+    nock(API_URL).get('/api/test_plans/12').reply(200, testPlanItemFixture); // testersEnrolled: ['/api/testers/7']
+
+    const scope = nock(API_URL)
+      .patch('/api/test_plans/12', { testersEnrolled: [] })
+      .matchHeader('content-type', 'application/merge-patch+json')
+      .reply(200, {});
+
+    const logSpy = jest.spyOn(console, 'log').mockImplementation();
+
+    const commandInstance = await CommandTestFactory.createTestingCommand({
+      imports: [AppModule],
+    }).compile();
+
+    await CommandTestFactory.run(commandInstance, [
+      'plan',
+      'remove-tester',
+      '12',
+      '7',
+    ]);
+
+    expect(scope.isDone()).toBe(true);
+    expect(logSpy).toHaveBeenCalledWith(
+      JSON.stringify({ testersEnrolled: [], enrolledCount: 0 }),
+    );
+
+    logSpy.mockRestore();
+  });
+
+  it('plan remove-tester skips the PATCH entirely when no given tester is enrolled', async () => {
+    nock(API_URL).get('/api/test_plans/12').reply(200, testPlanItemFixture); // testersEnrolled: ['/api/testers/7']
+
+    const logSpy = jest.spyOn(console, 'log').mockImplementation();
+
+    const commandInstance = await CommandTestFactory.createTestingCommand({
+      imports: [AppModule],
+    }).compile();
+
+    await CommandTestFactory.run(commandInstance, [
+      'plan',
+      'remove-tester',
+      '12',
+      'not-enrolled',
+    ]);
+
+    // No PATCH was registered with nock at all — if one had been sent,
+    // it would error with "no match for request" since nothing intercepts it.
+    expect(logSpy).toHaveBeenCalledWith(
+      JSON.stringify({
+        testersEnrolled: ['/api/testers/7'],
+        enrolledCount: 1,
+      }),
+    );
+
+    logSpy.mockRestore();
+  });
+
+  it('plan remove-tester prints a clear error and sets a non-zero exit code for an unknown plan', async () => {
+    nock(API_URL)
+      .get('/api/test_plans/does-not-exist')
+      .reply(404, { detail: 'Not Found' });
+
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation();
+
+    const commandInstance = await CommandTestFactory.createTestingCommand({
+      imports: [AppModule],
+    }).compile();
+
+    await CommandTestFactory.run(commandInstance, [
+      'plan',
+      'remove-tester',
+      'does-not-exist',
+      '7',
+    ]);
+
+    expect(errorSpy).toHaveBeenCalledWith('Error: Not Found');
+    expect(process.exitCode).toBe(1);
+
+    errorSpy.mockRestore();
+  });
 });

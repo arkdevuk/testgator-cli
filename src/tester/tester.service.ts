@@ -69,4 +69,82 @@ export class TesterService {
     );
     return this.hydra.shapeItem(raw);
   }
+
+  /**
+   * Adds one or more tags to a tester's `tags` array (read-modify-write,
+   * merge-patch). Deduped client-side against the tester's current tags
+   * before sending — the server dedupes too (`User::setTags` does
+   * `array_unique`), but this keeps the PATCH minimal and the call
+   * idempotent (adding an already-present tag is a harmless no-op that
+   * still round-trips, matching the union semantics of every other
+   * read-then-PATCH command in this CLI).
+   *
+   * Not in scope: validating the tag id against the TesterTag catalog
+   * (task 24) — any string is accepted.
+   */
+  async addTags(id: string, tags: string[]): Promise<string[]> {
+    const tester = await this.get(id);
+    const current = ((tester.tags as string[] | undefined) ?? []).slice();
+    const union = Array.from(new Set([...current, ...tags]));
+
+    await this.apiClient.patch(`/api/testers/${id}`, { tags: union });
+
+    return union;
+  }
+
+  /**
+   * Removes one or more tags from a tester's `tags` array. Mirrors
+   * InviteService.inviteToTestPlan's "already enrolled" short-circuit:
+   * if none of the given tags are actually present, the PATCH is skipped
+   * entirely rather than sent as a redundant no-op.
+   */
+  async removeTags(id: string, tags: string[]): Promise<string[]> {
+    const tester = await this.get(id);
+    const current = ((tester.tags as string[] | undefined) ?? []).slice();
+    const remaining = current.filter((tag) => !tags.includes(tag));
+
+    if (remaining.length === current.length) {
+      return current;
+    }
+
+    await this.apiClient.patch(`/api/testers/${id}`, { tags: remaining });
+
+    return remaining;
+  }
+
+  /**
+   * Sets a tester's `active` flag (merge-patch). Not admin-gated: despite
+   * task 27's original assumption, User.php's Patch operation on
+   * `/api/testers/{id}` only requires ROLE_USER — the field-level comment
+   * there is explicit that this is intentional ("'testers:write' is
+   * required so a team member (ROLE_USER) can PATCH {active: false}"). So
+   * any logged-in team member can disable/enable a tester, matching that
+   * design rather than a client-side admin check the server doesn't back up.
+   */
+  private async setActive(
+    id: string,
+    active: boolean,
+  ): Promise<{ id: string; active: boolean }> {
+    const raw = await this.apiClient.patch<Record<string, unknown>>(
+      `/api/testers/${id}`,
+      { active },
+    );
+    const shaped = this.hydra.shapeItem(raw);
+    const shapedId =
+      typeof shaped.id === 'string' || typeof shaped.id === 'number'
+        ? String(shaped.id)
+        : id;
+
+    return { id: shapedId, active: Boolean(shaped.active) };
+  }
+
+  /** Deactivates a tester account. Existing answers and enrollments are untouched. */
+  async disable(id: string): Promise<{ id: string; active: boolean }> {
+    return this.setActive(id, false);
+  }
+
+  /** Reactivates a previously disabled tester account. */
+  async enable(id: string): Promise<{ id: string; active: boolean }> {
+    return this.setActive(id, true);
+  }
 }

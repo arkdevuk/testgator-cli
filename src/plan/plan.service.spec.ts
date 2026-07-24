@@ -4,6 +4,7 @@ import { HydraService } from '../hydra/hydra.service';
 import { ApiClientError } from '../api-client/api-client.error';
 import {
   testPlanItemFixture,
+  testPlanItemFixture2,
   testPlanCollectionFixture,
 } from '../../test/fixtures';
 
@@ -187,6 +188,58 @@ describe('PlanService', () => {
       await expect(service.update('999', { name: 'x' })).rejects.toBeInstanceOf(
         ApiClientError,
       );
+    });
+  });
+
+  describe('removeTesters', () => {
+    it('removes an enrolled tester and PATCHes the reduced roster', async () => {
+      apiClient.get.mockResolvedValueOnce(testPlanItemFixture); // testersEnrolled: ['/api/testers/7']
+
+      const result = await service.removeTesters('12', ['7']);
+
+      expect(apiClient.patch).toHaveBeenCalledWith('/api/test_plans/12', {
+        testersEnrolled: [],
+      });
+      expect(result).toEqual({ testersEnrolled: [], enrolledCount: 0 });
+    });
+
+    it('removes several testers at once in a single PATCH', async () => {
+      apiClient.get.mockResolvedValueOnce({
+        ...testPlanItemFixture,
+        testersEnrolled: ['/api/testers/7', '/api/testers/8', '/api/testers/9'],
+      });
+
+      const result = await service.removeTesters('12', ['7', '9']);
+
+      expect(apiClient.patch).toHaveBeenCalledTimes(1);
+      expect(apiClient.patch).toHaveBeenCalledWith('/api/test_plans/12', {
+        testersEnrolled: ['/api/testers/8'],
+      });
+      expect(result).toEqual({
+        testersEnrolled: ['/api/testers/8'],
+        enrolledCount: 1,
+      });
+    });
+
+    it('skips the PATCH entirely when none of the given testers are enrolled', async () => {
+      apiClient.get.mockResolvedValueOnce(testPlanItemFixture); // testersEnrolled: ['/api/testers/7']
+
+      const result = await service.removeTesters('12', ['999']);
+
+      expect(apiClient.patch).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        testersEnrolled: ['/api/testers/7'],
+        enrolledCount: 1,
+      });
+    });
+
+    it('is a no-op against an already-empty roster', async () => {
+      apiClient.get.mockResolvedValueOnce(testPlanItemFixture2); // testersEnrolled: []
+
+      const result = await service.removeTesters('13', ['7']);
+
+      expect(apiClient.patch).not.toHaveBeenCalled();
+      expect(result).toEqual({ testersEnrolled: [], enrolledCount: 0 });
     });
   });
 });

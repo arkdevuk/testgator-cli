@@ -9,6 +9,7 @@ import { PlanCreateCommand } from './plan-create.command';
 import { PlanEditCommand } from './plan-edit.command';
 import { PlanDuplicateService } from './plan-duplicate.service';
 import { PlanDuplicateCommand } from './plan-duplicate.command';
+import { PlanRemoveTesterCommand } from './plan-remove-tester.command';
 
 @Module({
   imports: [ApiClientModule, HydraModule],
@@ -21,6 +22,7 @@ import { PlanDuplicateCommand } from './plan-duplicate.command';
     PlanEditCommand,
     PlanDuplicateService,
     PlanDuplicateCommand,
+    PlanRemoveTesterCommand,
   ],
   exports: [PlanService, PlanDuplicateService],
 })

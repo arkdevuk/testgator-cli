@@ -3,11 +3,16 @@
   "version": "0.0.1",
   "description": "Agent-facing CLI client for the TestGator API — see project.md.",
   "author": "",
-  "private": true,
-  "license": "UNLICENSED",
+  "license": "AGPL-3.0-only",
+  "main": "dist/main.js",
   "bin": {
     "testgator-cli": "dist/main.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -20,7 +25,8 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:functional": "jest --config ./test/jest-functional.json"
+    "test:functional": "jest --config ./test/jest-functional.json",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@nestjs/axios": "^4.0.1",

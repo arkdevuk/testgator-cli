@@ -1,0 +1,101 @@
+name: Publish to npm
+
+# Only runs on tag pushes, matching testgator_client's release-docker.yml
+# pattern. Release is "tag it" — package.json's own `version` field is a
+# placeholder, not the source of truth (see "Set package.json version from
+# tag" below): the git tag is what actually determines the published
+# version.
+on:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: publish-${{ github.ref }}
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Verify and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # fetch-depth: 0 pulls full history (not just the tagged commit) —
+      # required for the "is this commit on main" ancestry check below.
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # The tags: filter above is a broad glob match (GitHub Actions filters
+      # don't support quantifiers like `[0-9]+`), so the exact vX.Y.Z shape
+      # is enforced precisely here instead.
+      - name: Validate tag
+        run: |
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid tag: $GITHUB_REF_NAME"
+            echo "Git tag must look like vX.Y.Z (e.g. v1.2.3) to match semver."
+            exit 1
+          fi
+
+      # GitHub has no ruleset for "a tag may only point to a commit on
+      # branch X" — tag protection only controls who can create/delete
+      # matching tags, not what commit they point to. This is the actual
+      # enforcement: refuse to publish anything unless the tagged commit is
+      # reachable from main, so a tag pushed from a feature branch (or any
+      # commit that never went through a reviewed PR into main) can never
+      # produce a publish. Mirrors testgator_client's release-docker.yml.
+      - name: Ensure tag points to a commit on main
+        run: |
+          git fetch origin main --quiet
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Tag $GITHUB_REF_NAME (commit $GITHUB_SHA) is not on main — refusing to publish."
+            exit 1
+          fi
+
+      - name: Extract version from tag
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Same quality bar as task 13's planned ci.yml (lint + unit +
+      # functional + build) — task 13 itself is blocked (no PR-gated CI
+      # exists yet in this repo), so this workflow runs its own copy of
+      # those steps rather than depending on a separate workflow file that
+      # doesn't exist. A broken build should never reach npm regardless of
+      # whether a PR-time check also caught it.
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Functional tests
+        run: npm run test:functional
+
+      - name: Build
+        run: npm run build
+
+      # Set package.json version from tag — this, not a hand-maintained
+      # version field, is what "the tag is the source of truth" means in
+      # practice. --no-git-tag-version so this doesn't create another tag or
+      # attempt a commit; the change lives only in the CI runner's checkout
+      # and is never pushed back.
+      - name: Set package.json version from tag
+        run: npm version --no-git-tag-version "$VERSION"
+
+      - name: Publish to npm
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

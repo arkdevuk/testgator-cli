@@ -13,6 +13,7 @@ import { AnswerModule } from './answer/answer.module';
 import { ReleaseModule } from './release/release.module';
 import { WebhookModule } from './webhook/webhook.module';
 import { InviteModule } from './invite/invite.module';
+import { TagModule } from './tag/tag.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { InviteModule } from './invite/invite.module';
     ReleaseModule,
     WebhookModule,
     InviteModule,
+    TagModule,
   ],
   providers: [GuideCommand, PingCommand],
 })

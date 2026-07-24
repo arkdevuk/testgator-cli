@@ -40,15 +40,38 @@ Command groups (run \`<command> [<subcommand>] --help\` for full flag detail):
                              release list --project 1
                              release create --project 1 --name v1.4.0
                              release edit 3 --name v1.4.1
-  plan list|get|create|edit|duplicate
+  plan list|get|create|edit|duplicate|remove-tester
                              plan create --release 5 --name "Regression" --due-date 2026-08-01T00:00:00+00:00
                              plan duplicate 12 --project 3 --release 5 --name "Copy" --due-date <date>
+                             plan remove-tester <planId> <testerId...> detaches enrollment only
+                             (testersEnrolled) — answers and the tester accounts are unaffected.
+                             Skips the PATCH if none of the given testers are enrolled.
+                             plan remove-tester 12 8f14e45f-...
   question list|get|create|edit
                              question create --plan 12 --name "Can you log in?"
   tester list|get           Read-only. tester list --project 1
+  tester tag add|remove <testerId> <tag...>
+                             Read-modify-write on tester.tags. tag add accepts any
+                             string id — no catalog validation. tag remove skips the
+                             PATCH entirely if none of the given tags are present.
+                             tester tag add 8f14e45f-... vip beta
+  tester note list|add <testerId> ...
+                             Free-text notes (TesterAnnotation). list is newest first
+                             (order[created]=desc), paginated. add rejects blank content
+                             client-side. createdBy is always set server-side.
+                             tester note add 8f14e45f-... "Very responsive tester"
+  tester disable|enable <testerId>
+                             PATCHes active. NOT ROLE_ADMIN-gated — any logged-in
+                             team member can do this (User.php only requires ROLE_USER
+                             on this operation). Existing answers/enrollments untouched.
+                             tester disable 8f14e45f-...
   answer list|get|edit|delete
                              No \`answer create\` — answers are created by testers, not
                              this CLI. answer edit 501 --state failed --comment "..."
+  tag list|create|delete    Tag catalog (TesterTag). create <id> --label <label> validates
+                             <id> against [a-z0-9_-]+ client-side. delete is a SOFT delete
+                             (deleted=true; testers keeping that tag id are unaffected).
+                             tag create vip --label "VIP"
   webhook enable|disable|set-url <url>
                              Admin only (ROLE_ADMIN) — fails with a clear error otherwise.
   invite <email>            Create a tester account for this email if none exists yet
