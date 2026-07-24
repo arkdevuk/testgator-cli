@@ -141,6 +141,7 @@ A couple of behaviors worth knowing up front:
 ```bash
 npm run test              # unit tests
 npm run test:functional   # functional tests (nest-commander-testing + nock, no real server needed)
+npm run test:packaging    # smoke-tests the real packaged binary (npm pack + npm install -g), not in-process dispatch
 npm run lint               # eslint --fix (auto-fixes what it can)
 npm run build
 ```
