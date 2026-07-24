@@ -13,8 +13,13 @@ on:
 concurrency:
   group: publish-${{ github.ref }}
 
+# id-token: write is what lets this workflow mint the OIDC token npm's
+# trusted-publisher check verifies — see "Publish to npm" below. No NPM_TOKEN
+# secret exists or is needed; npm.com's package settings (Trusted Publisher →
+# arkdevuk/testgator-cli → publish.yml) are the other half of this trust.
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   publish:
@@ -63,8 +68,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
           registry-url: 'https://registry.npmjs.org'
+          # No package-manager-cache/cache here — npm's own trusted-publishing
+          # docs call out not caching in release builds, and this workflow
+          # already re-installs from a clean `npm ci` every run regardless.
+
+      # Trusted publishing (OIDC) needs npm CLI >= 11.5.1; Node 22's bundled
+      # npm doesn't reliably meet that yet, so upgrade explicitly rather than
+      # hoping the runner's default is new enough.
+      - name: Upgrade npm for trusted publishing (OIDC needs >= 11.5.1)
+        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: npm ci
@@ -95,7 +108,10 @@ jobs:
       - name: Set package.json version from tag
         run: npm version --no-git-tag-version "$VERSION"
 
+      # No NODE_AUTH_TOKEN — npm CLI detects the OIDC context from
+      # id-token: write above and authenticates via the trusted-publisher
+      # relationship configured on npmjs.com instead. --provenance is passed
+      # explicitly rather than relying on automatic detection, which has been
+      # reported unreliable on first publishes after switching to OIDC.
       - name: Publish to npm
-        run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance

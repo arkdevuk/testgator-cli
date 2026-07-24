@@ -4,6 +4,10 @@
   "description": "Agent-facing CLI client for the TestGator API — see project.md.",
   "author": "",
   "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arkdevuk/testgator-cli.git"
+  },
   "main": "dist/main.js",
   "bin": {
     "testgator-cli": "dist/main.js"
