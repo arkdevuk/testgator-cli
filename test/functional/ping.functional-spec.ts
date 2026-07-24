@@ -121,14 +121,20 @@ describe('ping (functional)', () => {
 
   it('reports a clear error when the backend is unreachable', async () => {
     fs.writeFileSync(path.join(tempDir, 'token'), 'a-cached-jwt');
-    process.env.TESTGATOR_API_URL = API_URL;
-    nock(API_URL)
-      .get('/')
-      .replyWithError(
-        Object.assign(new Error('connect ECONNREFUSED'), {
-          code: 'ECONNREFUSED',
-        }),
-      );
+
+    // A genuine unreachable loopback port rather than nock's replyWithError.
+    // nock v14's @mswjs/interceptors backend emits a replyWithError socket
+    // error asynchronously, decoupled from the request's own promise chain
+    // — under different event-loop timing (observed in CI, not locally) that
+    // emission can land after this test has already finished, surfacing as
+    // an "Unhandled error" attributed to whichever test runs next instead of
+    // this one (see nock/nock#2789, mswjs/interceptors#625 for the same
+    // interceptor-level issue class). Nothing listens on port 1, so this
+    // produces a real, synchronous OS-level ECONNREFUSED — sidesteps the
+    // flakiness entirely and is arguably more faithful to the real error
+    // path than a simulated one.
+    const unreachableUrl = 'http://127.0.0.1:1';
+    process.env.TESTGATOR_API_URL = unreachableUrl;
 
     const errorSpy = jest.spyOn(console, 'error').mockImplementation();
 
@@ -139,7 +145,7 @@ describe('ping (functional)', () => {
     await CommandTestFactory.run(commandInstance, ['ping']);
 
     expect(errorSpy).toHaveBeenCalledWith(
-      expect.stringContaining(`Could not reach ${API_URL}`),
+      expect.stringContaining(`Could not reach ${unreachableUrl}`),
     );
     expect(process.exitCode).toBe(1);
 
